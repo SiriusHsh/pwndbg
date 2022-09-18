@@ -15,6 +15,7 @@ def request2size(req):
 
 
 def fastbin_index(size):
+    size = size & 0xffffffff
     if pwndbg.gdblib.arch.ptrsize == 8:
         return (size >> 4) - 2
     else:

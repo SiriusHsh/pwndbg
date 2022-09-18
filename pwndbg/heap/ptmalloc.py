@@ -324,6 +324,7 @@ class Heap(pwndbg.heap.heap.BaseHeap):
         return pwndbg.vmmap.find(addr)
 
     def fastbin_index(self, size):
+        size = size & 0xffffffff
         if pwndbg.gdblib.arch.ptrsize == 8:
             return (size >> 4) - 2
         else:

@@ -240,8 +240,9 @@ def testfsop(addr=None):
     testorange(chain)
     try :
         while chain != 0 :
-            cmd = "x/" + word + "&((struct _IO_FILE_plus *)" + hex(chain) +").file._chain"
-            chain = int(gdb.execute(cmd,to_string=True).split(":")[1].strip(),16)
+            chain_addr = int(gdb.parse_and_eval("&((struct _IO_FILE_plus *)" + hex(chain) + ").file._chain"))
+            chain = pwndbg.memory.read(chain_addr, pwndbg.arch.ptrsize)
+            chain = int.from_bytes(chain, byteorder=pwndbg.arch.endian)
             if chain != 0 :
                 print("---------- fp : 0x%x ----------" % chain)
                 testorange(chain)

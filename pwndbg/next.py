@@ -9,9 +9,7 @@ import capstone
 import gdb
 
 import pwndbg.disasm
-import pwndbg.gdblib.events
-import pwndbg.gdblib.regs
-import pwndbg.proc
+import pwndbg.regs
 from pwndbg.color import message
 
 jumps = set((capstone.CS_GRP_CALL, capstone.CS_GRP_JUMP, capstone.CS_GRP_RET, capstone.CS_GRP_IRET))
@@ -19,7 +17,7 @@ jumps = set((capstone.CS_GRP_CALL, capstone.CS_GRP_JUMP, capstone.CS_GRP_RET, ca
 interrupts = set((capstone.CS_GRP_INT,))
 
 
-@pwndbg.gdblib.events.exit
+@pwndbg.events.exit
 def clear_temp_breaks():
     if not pwndbg.proc.alive:
         breakpoints = gdb.breakpoints()
@@ -39,7 +37,7 @@ def next_int(address=None):
     Otherwise, return None.
     """
     if address is None:
-        ins = pwndbg.disasm.one(pwndbg.gdblib.regs.pc)
+        ins = pwndbg.disasm.one(pwndbg.regs.pc)
         if not ins:
             return None
         address = ins.next
@@ -57,7 +55,7 @@ def next_int(address=None):
 
 def next_branch(address=None):
     if address is None:
-        ins = pwndbg.disasm.one(pwndbg.gdblib.regs.pc)
+        ins = pwndbg.disasm.one(pwndbg.regs.pc)
         if not ins:
             return None
         address = ins.next
@@ -133,14 +131,14 @@ def break_on_program_code():
     start = mp.start
     end = mp.end
 
-    if start <= pwndbg.gdblib.regs.pc < end:
+    if start <= pwndbg.regs.pc < end:
         print(message.error("The pc is already at the binary objfile code. Not stepping."))
         return False
 
     while pwndbg.proc.alive:
         gdb.execute("si", from_tty=False, to_string=False)
 
-        addr = pwndbg.gdblib.regs.pc
+        addr = pwndbg.regs.pc
         if start <= addr < end:
             return True
 
@@ -148,7 +146,7 @@ def break_on_program_code():
 
 
 def break_on_next(address=None):
-    address = address or pwndbg.gdblib.regs.pc
+    address = address or pwndbg.regs.pc
     ins = pwndbg.disasm.one(address)
 
     gdb.Breakpoint("*%#x" % (ins.address + ins.size), temporary=True)

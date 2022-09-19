@@ -4,9 +4,9 @@ Search the address space for byte patterns.
 
 import gdb
 
-import pwndbg.gdblib.arch
-import pwndbg.gdblib.memory
-import pwndbg.gdblib.typeinfo
+import pwndbg.arch
+import pwndbg.memory
+import pwndbg.typeinfo
 import pwndbg.vmmap
 
 
@@ -15,7 +15,7 @@ def search(searchfor, mappings=None, start=None, end=None, executable=False, wri
 
     Arguments:
         searchfor(bytes): Byte sequence to find
-        mappings(list): List of pwndbg.lib.memory.Page objects to search
+        mappings(list): List of pwndbg.memory.Page objects to search
             By default, uses all available mappings.
         start(int): First address to search, inclusive.
         end(int): Last address to search, exclusive.
@@ -49,7 +49,7 @@ def search(searchfor, mappings=None, start=None, end=None, executable=False, wri
 
         while True:
             # No point in searching if we can't read the memory
-            if not pwndbg.gdblib.memory.peek(start):
+            if not pwndbg.memory.peek(start):
                 break
 
             length = end - start
@@ -67,7 +67,7 @@ def search(searchfor, mappings=None, start=None, end=None, executable=False, wri
 
             # For some reason, search_memory will return a positive hit
             # when it's unable to read memory.
-            if not pwndbg.gdblib.memory.peek(start):
+            if not pwndbg.memory.peek(start):
                 break
 
             yield start

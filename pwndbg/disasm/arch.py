@@ -1,7 +1,7 @@
 import gdb
-from capstone import *  # noqa: F403
+from capstone import *
 
-import pwndbg.lib.memoize
+import pwndbg.memoize
 import pwndbg.symbol
 
 debug = False
@@ -37,9 +37,7 @@ class DisassemblyAssistant:
 
     @staticmethod
     def enhance(instruction):
-        enhancer = DisassemblyAssistant.assistants.get(
-            pwndbg.gdblib.arch.current, generic_assistant
-        )
+        enhancer = DisassemblyAssistant.assistants.get(pwndbg.arch.current, generic_assistant)
         enhancer.enhance_operands(instruction)
         enhancer.enhance_symbol(instruction)
         enhancer.enhance_conditional(instruction)
@@ -101,7 +99,7 @@ class DisassemblyAssistant:
             next_addr = instruction.address + instruction.size
             instruction.target = self.next(instruction, call=True)
 
-        instruction.next = next_addr & pwndbg.gdblib.arch.ptrmask
+        instruction.next = next_addr & pwndbg.arch.ptrmask
 
         if instruction.target is None:
             instruction.target = instruction.next
@@ -129,7 +127,7 @@ class DisassemblyAssistant:
         op = instruction.operands[0]
         addr = op.int
         if addr:
-            addr &= pwndbg.gdblib.arch.ptrmask
+            addr &= pwndbg.arch.ptrmask
         if op.type == CS_OP_MEM:
             if addr is None:
                 addr = self.memory(instruction, op)
@@ -139,7 +137,7 @@ class DisassemblyAssistant:
                 try:
                     # fails with gdb.MemoryError if the dereferenced address
                     # doesn't belong to any of process memory maps
-                    addr = int(pwndbg.gdblib.memory.poi(pwndbg.gdblib.typeinfo.ppvoid, addr))
+                    addr = int(pwndbg.memory.poi(pwndbg.typeinfo.ppvoid, addr))
                 except gdb.MemoryError:
                     return None
         if op.type == CS_OP_REG:
@@ -193,7 +191,7 @@ class DisassemblyAssistant:
 
             op.int = self.op_handlers.get(op.type, lambda *a: None)(instruction, op)
             if op.int:
-                op.int &= pwndbg.gdblib.arch.ptrmask
+                op.int &= pwndbg.arch.ptrmask
             op.str = self.op_names.get(op.type, lambda *a: None)(instruction, op)
 
             if op.int:
@@ -211,7 +209,7 @@ class DisassemblyAssistant:
         return "%#x" % value
 
     def register(self, instruction, operand):
-        if instruction.address != pwndbg.gdblib.regs.pc:
+        if instruction.address != pwndbg.regs.pc:
             return None
 
         # # Don't care about registers which are only overwritten
@@ -221,7 +219,7 @@ class DisassemblyAssistant:
         reg = operand.value.reg
         name = instruction.reg_name(reg)
 
-        return pwndbg.gdblib.regs[name]
+        return pwndbg.regs[name]
 
     def register_sz(self, instruction, operand):
         reg = operand.value.reg

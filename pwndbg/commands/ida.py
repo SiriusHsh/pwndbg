@@ -7,14 +7,14 @@ import gdb
 
 import pwndbg.commands
 import pwndbg.commands.context
-import pwndbg.gdblib.regs
 import pwndbg.ida
+import pwndbg.regs
 from pwndbg.gdbutils.functions import GdbFunction
 
 
 @pwndbg.commands.ArgparsedCommand("Synchronize IDA's cursor with GDB")
 @pwndbg.commands.OnlyWhenRunning
-@pwndbg.gdblib.events.stop
+@pwndbg.events.stop
 @pwndbg.ida.withIDA
 def j(*args):
     """

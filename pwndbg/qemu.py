@@ -7,15 +7,13 @@ import os
 import gdb
 import psutil
 
-import pwndbg.gdblib.remote
-
-# TODO: `import pwndbg.gdblib.events` leads to a circular import
-from pwndbg.gdblib.events import start
+import pwndbg.events
+import pwndbg.remote
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def is_qemu():
-    if not pwndbg.gdblib.remote.is_remote():
+    if not pwndbg.remote.is_remote():
         return False
 
     # Example:
@@ -27,9 +25,9 @@ def is_qemu():
     return "ENABLE=" in response
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def is_usermode():
-    if not pwndbg.gdblib.remote.is_remote():
+    if not pwndbg.remote.is_remote():
         return False
 
     # There is also 'qAttached' - maybe we can use it too?
@@ -42,7 +40,7 @@ def is_usermode():
     return "Text=" in response
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def is_qemu_usermode():
     """Returns ``True`` if the target remote is being run under
     QEMU usermode emulation."""
@@ -50,20 +48,20 @@ def is_qemu_usermode():
     return is_qemu() and is_usermode()
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def is_qemu_kernel():
     return is_qemu() and not is_usermode()
 
 
-@start
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.events.start
+@pwndbg.memoize.reset_on_stop
 def root():
     global binfmt_root
 
     if not is_qemu_usermode():
         return
 
-    binfmt_root = "/etc/qemu-binfmt/%s/" % pwndbg.gdblib.arch.qemu
+    binfmt_root = "/etc/qemu-binfmt/%s/" % pwndbg.arch.qemu
 
     if not os.path.isdir(binfmt_root):
         return
@@ -73,7 +71,7 @@ def root():
     return binfmt_root
 
 
-@pwndbg.lib.memoize.reset_on_start
+@pwndbg.memoize.reset_on_start
 def pid():
     """Find the PID of the qemu usermode binary which we are
     talking to.

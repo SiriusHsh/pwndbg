@@ -1,14 +1,14 @@
 import argparse
-import errno
+import errno as _errno
 
-import gdb
-
+import pwndbg as _pwndbg
+import pwndbg.arch as _arch
 import pwndbg.auxv
 import pwndbg.commands
-import pwndbg.gdblib.regs
+import pwndbg.regs
 import pwndbg.symbol
 
-errno.errorcode[0] = "OK"
+_errno.errorcode[0] = "OK"
 
 parser = argparse.ArgumentParser(
     description="""
@@ -24,39 +24,24 @@ parser.add_argument(
 )
 
 
-@pwndbg.commands.ArgparsedCommand(parser, command_name="errno")
+@_pwndbg.commands.ArgparsedCommand(parser)
 @pwndbg.commands.OnlyWhenRunning
-def errno_(err):
+def errno(err):
     if err is None:
-        # Try to get the `errno` variable value
-        # if it does not exist, get the errno variable from its location
-        try:
-            err = int(gdb.parse_and_eval("errno"))
-        except gdb.error:
-            try:
-                # We can't simply call __errno_location because its .plt.got entry may be uninitialized
-                # (e.g. if the binary was just started with `starti` command)
-                # So we have to check the got.plt entry first before calling it
-                errno_loc_gotplt = pwndbg.symbol.address("__errno_location@got.plt")
+        # Dont ask.
+        errno_location = pwndbg.symbol.get("__errno_location")
+        err = pwndbg.memory.int(errno_location)
+        # err = int(gdb.parse_and_eval('*((int *(*) (void)) __errno_location) ()'))
 
-                # If the got.plt entry is not there (is None), it means the symbol is not used by the binary
-                if errno_loc_gotplt is None or pwndbg.vmmap.find(
-                    pwndbg.gdblib.memory.pvoid(errno_loc_gotplt)
-                ):
-                    err = int(gdb.parse_and_eval("*((int *(*) (void)) __errno_location) ()"))
-                else:
-                    print(
-                        "Could not determine error code automatically: the __errno_location@got.plt has no valid address yet (perhaps libc.so hasn't been loaded yet?)"
-                    )
-                    return
-            except gdb.error:
-                print(
-                    "Could not determine error code automatically: neither `errno` nor `__errno_location` symbols were provided (perhaps libc.so hasn't been not loaded yet?)"
-                )
-                return
+    err = abs(int(err))
 
-    msg = errno.errorcode.get(int(err), "Unknown error code")
-    print("Errno %s: %s" % (err, msg))
+    if err >> 63:
+        err -= 1 << 64
+    elif err >> 31:
+        err -= 1 << 32
+
+    msg = _errno.errorcode.get(int(err), "Unknown error code")
+    print("Errno %i: %s" % (err, msg))
 
 
 parser = argparse.ArgumentParser(
@@ -73,8 +58,8 @@ parser.add_argument(
 )
 
 
-@pwndbg.commands.ArgparsedCommand(parser, command_name="pwndbg")
-def pwndbg_(filter_pattern):
+@_pwndbg.commands.ArgparsedCommand(parser)
+def pwndbg(filter_pattern):
     for name, docs in list_and_filter_commands(filter_pattern):
         print("%-20s %s" % (name, docs))
 
@@ -84,22 +69,19 @@ parser.add_argument("a", type=int, help="The first address.")
 parser.add_argument("b", type=int, help="The second address.")
 
 
-@pwndbg.commands.ArgparsedCommand(parser)
+@_pwndbg.commands.ArgparsedCommand(parser)
 def distance(a, b):
     """Print the distance between the two arguments"""
-    a = int(a) & pwndbg.gdblib.arch.ptrmask
-    b = int(b) & pwndbg.gdblib.arch.ptrmask
+    a = int(a) & _arch.ptrmask
+    b = int(b) & _arch.ptrmask
 
     distance = b - a
 
-    print(
-        "%#x->%#x is %#x bytes (%#x words)"
-        % (a, b, distance, distance // pwndbg.gdblib.arch.ptrsize)
-    )
+    print("%#x->%#x is %#x bytes (%#x words)" % (a, b, distance, distance // _arch.ptrsize))
 
 
 def list_and_filter_commands(filter_str):
-    sorted_commands = list(pwndbg.commands.commands)
+    sorted_commands = list(_pwndbg.commands.commands)
     sorted_commands.sort(key=lambda x: x.__name__)
 
     if filter_str:

@@ -9,9 +9,9 @@ import pwndbg.color
 import pwndbg.color.message as message
 import pwndbg.enhance
 import pwndbg.exception
-import pwndbg.gdblib.memory
-import pwndbg.gdblib.regs
 import pwndbg.hexdump
+import pwndbg.memory
+import pwndbg.regs
 import pwndbg.symbol
 import pwndbg.ui
 
@@ -195,13 +195,14 @@ def fix(arg, sloppy=False, quiet=True, reraise=False):
         pass
 
     try:
-        arg = pwndbg.gdblib.regs.fix(arg)
+        arg = pwndbg.regs.fix(arg)
         return gdb.parse_and_eval(arg)
     except Exception as e:
         if not quiet:
             print(e)
         if reraise:
             raise e
+        pass
 
     if sloppy:
         return arg
@@ -223,7 +224,7 @@ def OnlyWithFile(function):
         if pwndbg.proc.exe:
             return function(*a, **kw)
         else:
-            if pwndbg.gdblib.qemu.is_qemu():
+            if pwndbg.qemu.is_qemu():
                 print(message.error("Could not determine the target binary on QEMU."))
             else:
                 print(message.error("%s: There is no file loaded." % function.__name__))
@@ -268,11 +269,11 @@ def OnlyWhenHeapIsInitialized(function):
 
 
 def OnlyAmd64(function):
-    """Decorates function to work only when pwndbg.gdblib.arch.current == \"x86-64\"."""
+    """Decorates function to work only when pwndbg.arch.current == \"x86-64\"."""
 
     @functools.wraps(function)
     def _OnlyAmd64(*a, **kw):
-        if pwndbg.gdblib.arch.current == "x86-64":
+        if pwndbg.arch.current == "x86-64":
             return function(*a, **kw)
         else:
             print('%s: Only works with "x86-64" arch.' % function.__name__)
@@ -338,7 +339,7 @@ class _ArgparsedCommand(Command):
 class ArgparsedCommand:
     """Adds documentation and offloads parsing for a Command via argparse"""
 
-    def __init__(self, parser_or_desc, aliases=[], command_name=None):
+    def __init__(self, parser_or_desc, aliases=[]):
         """
         :param parser_or_desc: `argparse.ArgumentParser` instance or `str`
         """
@@ -347,8 +348,6 @@ class ArgparsedCommand:
         else:
             self.parser = parser_or_desc
         self.aliases = aliases
-        self._command_name = command_name
-
         # We want to run all integer and otherwise-unspecified arguments
         # through fix() so that GDB parses it.
         for action in self.parser._actions:
@@ -361,11 +360,11 @@ class ArgparsedCommand:
 
     def __call__(self, function):
         for alias in self.aliases:
-            _ArgparsedCommand(self.parser, function, command_name=alias)
-        return _ArgparsedCommand(self.parser, function, command_name=self._command_name)
+            _ArgparsedCommand(self.parser, function, alias)
+        return _ArgparsedCommand(self.parser, function)
 
 
-# We use a 64-bit max value literal here instead of pwndbg.gdblib.arch.current
+# We use a 64-bit max value literal here instead of pwndbg.arch.current
 # as realistically its ok to pull off the biggest possible type here
 # We cache its GDB value type which is 'unsigned long long'
 _mask = 0xFFFFFFFFFFFFFFFF

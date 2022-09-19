@@ -1,9 +1,11 @@
 import string
 
+import gdb
+
 import pwndbg.auxv
 import pwndbg.commands
 import pwndbg.file
-import pwndbg.lib.memoize
+import pwndbg.memoize
 import pwndbg.net
 import pwndbg.proc
 
@@ -81,14 +83,14 @@ class Process:
         self.status
 
     @property
-    @pwndbg.lib.memoize.reset_on_stop
+    @pwndbg.memoize.reset_on_stop
     def selinux(self):
         path = "/proc/%i/task/%i/attr/current" % (self.pid, self.tid)
         raw = pwndbg.file.get(path)
         return raw.decode().rstrip("\x00").strip()
 
     @property
-    @pwndbg.lib.memoize.reset_on_stop
+    @pwndbg.memoize.reset_on_stop
     def status(self):
         raw = pwndbg.file.get("/proc/%i/task/%i/status" % (self.pid, self.tid))
 
@@ -144,7 +146,7 @@ class Process:
         return status
 
     @property
-    @pwndbg.lib.memoize.reset_on_stop
+    @pwndbg.memoize.reset_on_stop
     def open_files(self):
         fds = {}
 
@@ -157,7 +159,7 @@ class Process:
         return fds
 
     @property
-    @pwndbg.lib.memoize.reset_on_stop
+    @pwndbg.memoize.reset_on_stop
     def connections(self):
         # Connections look something like this:
         # socket:[102422]
@@ -221,14 +223,14 @@ def procinfo():
 
     print("%-10s %s" % ("ppid", proc.ppid))
 
-    if not pwndbg.lib.android.is_android():
+    if not pwndbg.android.is_android():
         print("%-10s %s" % ("uid", proc.uid))
         print("%-10s %s" % ("gid", proc.gid))
         print("%-10s %s" % ("groups", proc.groups))
     else:
-        print("%-10s %s" % ("uid", list(map(pwndbg.lib.android.aid_name, proc.uid))))
-        print("%-10s %s" % ("gid", list(map(pwndbg.lib.android.aid_name, proc.gid))))
-        print("%-10s %s" % ("groups", list(map(pwndbg.lib.android.aid_name, proc.groups))))
+        print("%-10s %s" % ("uid", list(map(pwndbg.android.aid_name, proc.uid))))
+        print("%-10s %s" % ("gid", list(map(pwndbg.android.aid_name, proc.gid))))
+        print("%-10s %s" % ("groups", list(map(pwndbg.android.aid_name, proc.groups))))
 
     for fd, path in files.items():
         if not set(path) < set(string.printable):

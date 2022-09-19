@@ -5,24 +5,25 @@ Compatibility functionality for Windbg users.
 import argparse
 import codecs
 import math
+import sys
 from builtins import str
 
 import gdb
 
+import pwndbg.arch
 import pwndbg.commands
-import pwndbg.gdblib.arch
-import pwndbg.gdblib.memory
-import pwndbg.gdblib.strings
-import pwndbg.gdblib.typeinfo
+import pwndbg.memory
+import pwndbg.strings
 import pwndbg.symbol
+import pwndbg.typeinfo
 
 
 def get_type(size):
     return {
-        1: pwndbg.gdblib.typeinfo.uint8,
-        2: pwndbg.gdblib.typeinfo.uint16,
-        4: pwndbg.gdblib.typeinfo.uint32,
-        8: pwndbg.gdblib.typeinfo.uint64,
+        1: pwndbg.typeinfo.uint8,
+        2: pwndbg.typeinfo.uint16,
+        4: pwndbg.typeinfo.uint32,
+        8: pwndbg.typeinfo.uint64,
     }[size]
 
 
@@ -147,14 +148,14 @@ def dX(size, address, count, to_string=False, repeat=False):
         count = dX.last_count
         address = dX.last_address
     else:
-        address = int(address) & pwndbg.gdblib.arch.ptrmask
+        address = int(address) & pwndbg.arch.ptrmask
         count = int(count)
 
     type = get_type(size)
 
     for i in range(count):
         try:
-            gval = pwndbg.gdblib.memory.poi(type, address + i * size)
+            gval = pwndbg.memory.poi(type, address + i * size)
             # print(str(gval))
             values.append(int(gval))
         except gdb.MemoryError:
@@ -174,7 +175,7 @@ def dX(size, address, count, to_string=False, repeat=False):
     for i, row in enumerate(rows):
         if not row:
             continue
-        line = [enhex(pwndbg.gdblib.arch.ptrsize, address + (i * 16)), "   "]
+        line = [enhex(pwndbg.arch.ptrsize, address + (i * 16)), "   "]
         for value in row:
             line.append(enhex(size, value))
         lines.append(" ".join(line))
@@ -325,11 +326,11 @@ def eX(size, address, data, hex=True):
         else:
             data = string
 
-        if pwndbg.gdblib.arch.endian == "little":
+        if pwndbg.arch.endian == "little":
             data = data[::-1]
 
         try:
-            pwndbg.gdblib.memory.write(address + (i * size), data)
+            pwndbg.memory.write(address + (i * size), data)
             writes += 1
         except gdb.error:
             print("Cannot access memory at address %#x" % address)
@@ -362,7 +363,7 @@ da_parser.add_argument("max", type=int, nargs="?", default=256, help="Maximum st
 @pwndbg.commands.ArgparsedCommand(da_parser)
 @pwndbg.commands.OnlyWhenRunning
 def da(address, max):
-    print("%x" % address, repr(pwndbg.gdblib.strings.get(address, max)))
+    print("%x" % address, repr(pwndbg.strings.get(address, max)))
 
 
 ds_parser = argparse.ArgumentParser()
@@ -381,7 +382,7 @@ def ds(address, max):
         print("Max str len of %d too low, changing to 256" % max)
         max = 256
 
-    string = pwndbg.gdblib.strings.get(address, max, maxread=4096)
+    string = pwndbg.strings.get(address, max, maxread=4096)
     if string:
         print("%x %r" % (address, string))
     else:
@@ -483,7 +484,7 @@ def u(where=None, n=5, to_string=False):
     N instructions (default 5).
     """
     if where is None:
-        where = pwndbg.gdblib.regs.pc
+        where = pwndbg.regs.pc
     return pwndbg.commands.nearpc.nearpc(where, n, to_string)
 
 
@@ -509,7 +510,7 @@ def ln(value=None):
     List the symbols nearest to the provided value.
     """
     if value is None:
-        value = pwndbg.gdblib.regs.pc
+        value = pwndbg.regs.pc
     value = int(value)
     x = pwndbg.symbol.get(value)
     if x:

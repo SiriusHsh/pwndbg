@@ -19,10 +19,10 @@ import pwndbg.commands.nearpc
 import pwndbg.commands.telescope
 import pwndbg.config
 import pwndbg.disasm
-import pwndbg.gdblib.events
-import pwndbg.gdblib.regs
+import pwndbg.events
 import pwndbg.ghidra
 import pwndbg.ida
+import pwndbg.regs
 import pwndbg.symbol
 import pwndbg.ui
 import pwndbg.vmmap
@@ -315,7 +315,7 @@ def context_ghidra(target=sys.stdout, with_banner=True, width=None):
         return banner + [message.error(e)]
 
 
-# @pwndbg.gdblib.events.stop
+# @pwndbg.events.stop
 
 parser = argparse.ArgumentParser()
 parser.description = "Print out the current register, instruction, and stack context."
@@ -491,51 +491,48 @@ def get_regs(*regs):
 
     if not regs and pwndbg.config.show_retaddr_reg:
         regs = (
-            pwndbg.gdblib.regs.gpr
-            + (pwndbg.gdblib.regs.frame, pwndbg.gdblib.regs.current.stack)
-            + pwndbg.gdblib.regs.retaddr
-            + (pwndbg.gdblib.regs.current.pc,)
+            pwndbg.regs.gpr
+            + (pwndbg.regs.frame, pwndbg.regs.current.stack)
+            + pwndbg.regs.retaddr
+            + (pwndbg.regs.current.pc,)
         )
     elif not regs:
-        regs = pwndbg.gdblib.regs.gpr + (
-            pwndbg.gdblib.regs.frame,
-            pwndbg.gdblib.regs.current.stack,
-            pwndbg.gdblib.regs.current.pc,
+        regs = pwndbg.regs.gpr + (
+            pwndbg.regs.frame,
+            pwndbg.regs.current.stack,
+            pwndbg.regs.current.pc,
         )
 
     if pwndbg.config.show_flags:
-        regs += tuple(pwndbg.gdblib.regs.flags)
+        regs += tuple(pwndbg.regs.flags)
 
-    changed = pwndbg.gdblib.regs.changed
+    changed = pwndbg.regs.changed
 
     for reg in regs:
         if reg is None:
             continue
 
-        if reg not in pwndbg.gdblib.regs:
+        if reg not in pwndbg.regs:
             print(message.warn("Unknown register: %r" % reg))
             continue
 
-        value = pwndbg.gdblib.regs[reg]
+        value = pwndbg.regs[reg]
 
-        # Make the register stand out and give a color if changed
+        # Make the register stand out
         regname = C.register(reg.ljust(4).upper())
-        if reg in changed:
-            regname = C.register_changed(regname)
 
         # Show a dot next to the register if it changed
         change_marker = "%s" % C.config_register_changed_marker
         m = " " * len(change_marker) if reg not in changed else C.register_changed(change_marker)
 
-        if reg in pwndbg.gdblib.regs.flags:
-            desc = C.format_flags(
-                value, pwndbg.gdblib.regs.flags[reg], pwndbg.gdblib.regs.last.get(reg, 0)
-            )
+        if reg in pwndbg.regs.flags:
+            desc = C.format_flags(value, pwndbg.regs.flags[reg], pwndbg.regs.last.get(reg, 0))
 
         else:
             desc = pwndbg.chain.format(value)
 
         result.append("%s%s %s" % (m, regname, desc))
+
     return result
 
 
@@ -567,7 +564,7 @@ def context_disasm(target=sys.stdout, with_banner=True, width=None):
 
     # The `None` case happens when the cache was not filled yet (see e.g. #881)
     if cs is not None and cs.syntax != syntax:
-        pwndbg.lib.memoize.reset()
+        pwndbg.memoize.reset()
 
     banner = [pwndbg.ui.banner("disasm", target=target, width=width)]
     emulate = bool(pwndbg.config.emulate)
@@ -588,7 +585,7 @@ source_code_lines = pwndbg.config.Parameter(
 theme.Parameter("code-prefix", "►", "prefix marker for 'context code' command")
 
 
-@pwndbg.lib.memoize.reset_on_start
+@pwndbg.memoize.reset_on_start
 def get_highlight_source(filename):
     # Notice that the code is cached
     with open(filename, encoding="utf-8", errors="ignore") as f:
@@ -674,7 +671,7 @@ def context_code(target=sys.stdout, with_banner=True, width=None):
 
     n = int(int(int(source_code_lines) / 2))  # int twice to make it a real int instead of inthook
     # May be None when decompilation failed or user loaded wrong binary in IDA
-    code = pwndbg.ida.decompile_context(pwndbg.gdblib.regs.pc, n)
+    code = pwndbg.ida.decompile_context(pwndbg.regs.pc, n)
 
     if code:
         bannerline = (
@@ -695,7 +692,7 @@ stack_lines = pwndbg.config.Parameter(
 def context_stack(target=sys.stdout, with_banner=True, width=None):
     result = [pwndbg.ui.banner("stack", target=target, width=width)] if with_banner else []
     telescope = pwndbg.commands.telescope.telescope(
-        pwndbg.gdblib.regs.sp, to_string=True, count=stack_lines
+        pwndbg.regs.sp, to_string=True, count=stack_lines
     )
     if telescope:
         result.extend(telescope)
@@ -794,7 +791,7 @@ def save_signal(signal):
             # we can't access $_siginfo, so lets just show current pc
             # see also issue 476
             if _is_rr_present():
-                msg += " (current pc: %#x)" % pwndbg.gdblib.regs.pc
+                msg += " (current pc: %#x)" % pwndbg.regs.pc
             else:
                 try:
                     si_addr = gdb.parse_and_eval("$_siginfo._sifields._sigfault.si_addr")
@@ -829,7 +826,7 @@ context_sections = {
 }
 
 
-@pwndbg.lib.memoize.forever
+@pwndbg.memoize.forever
 def _is_rr_present():
     """
     Checks whether rr project is present (so someone launched e.g. `rr replay <some-recording>`)

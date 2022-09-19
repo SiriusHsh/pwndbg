@@ -4,15 +4,15 @@ import sys
 
 import gdb
 
-import pwndbg.gdblib.abi
-import pwndbg.gdblib.arch
-import pwndbg.gdblib.events
-import pwndbg.gdblib.info
-import pwndbg.gdblib.memory
-import pwndbg.gdblib.qemu
-import pwndbg.gdblib.regs
-import pwndbg.gdblib.typeinfo
+import pwndbg.abi
+import pwndbg.arch
+import pwndbg.events
+import pwndbg.info
+import pwndbg.memory
+import pwndbg.qemu
+import pwndbg.regs
 import pwndbg.stack
+import pwndbg.typeinfo
 
 example_info_auxv_linux = """
 33   AT_SYSINFO_EHDR      System-supplied DSO's ELF header 0x7ffff7ffa000
@@ -83,7 +83,7 @@ class AUXV(dict):
         if name in ["AT_EXECFN", "AT_PLATFORM"]:
             try:
                 value = gdb.Value(value)
-                value = value.cast(pwndbg.gdblib.typeinfo.pchar)
+                value = value.cast(pwndbg.typeinfo.pchar)
                 value = value.string()
             except Exception:
                 value = "couldnt read AUXV!"
@@ -97,14 +97,14 @@ class AUXV(dict):
         return str({k: v for k, v in self.items() if v is not None})
 
 
-@pwndbg.lib.memoize.reset_on_objfile
-@pwndbg.lib.memoize.reset_on_start
+@pwndbg.memoize.reset_on_objfile
+@pwndbg.memoize.reset_on_start
 def get():
     return use_info_auxv() or walk_stack() or AUXV()
 
 
 def use_info_auxv():
-    lines = pwndbg.gdblib.info.auxv().splitlines()
+    lines = pwndbg.info.auxv().splitlines()
 
     if not lines:
         return None
@@ -123,7 +123,7 @@ def use_info_auxv():
 
 
 def find_stack_boundary(addr):
-    # For real binaries, we can just use pwndbg.gdblib.memory.find_upper_boundary
+    # For real binaries, we can just use pwndbg.memory.find_upper_boundary
     # to search forward until we walk off the end of the stack.
     #
     # Unfortunately, qemu-user emulation likes to paste the stack right
@@ -134,21 +134,21 @@ def find_stack_boundary(addr):
     #
     # 1) We get a page fault, and stop
     # 2) We find an ELF header, and stop
-    addr = pwndbg.lib.memory.page_align(int(addr))
+    addr = pwndbg.memory.page_align(int(addr))
     try:
         while True:
-            if b"\x7fELF" == pwndbg.gdblib.memory.read(addr, 4):
+            if b"\x7fELF" == pwndbg.memory.read(addr, 4):
                 break
-            addr += pwndbg.lib.memory.PAGE_SIZE
+            addr += pwndbg.memory.PAGE_SIZE
     except gdb.MemoryError:
         pass
     return addr
 
 
 def walk_stack():
-    if not pwndbg.gdblib.abi.linux:
+    if not pwndbg.abi.linux:
         return None
-    if pwndbg.gdblib.qemu.is_qemu_kernel():
+    if pwndbg.qemu.is_qemu_kernel():
         return None
 
     auxv = walk_stack2(0)
@@ -168,7 +168,7 @@ def walk_stack():
 
 
 def walk_stack2(offset=0):
-    sp = pwndbg.gdblib.regs.sp
+    sp = pwndbg.regs.sp
 
     if not sp:
         return AUXV()
@@ -186,7 +186,7 @@ def walk_stack2(offset=0):
     # 5) Vacuum up between the two.
     #
     end = find_stack_boundary(sp)
-    p = gdb.Value(end).cast(pwndbg.gdblib.typeinfo.ulong.pointer())
+    p = gdb.Value(end).cast(pwndbg.typeinfo.ulong.pointer())
 
     p -= offset
 
@@ -230,8 +230,8 @@ def walk_stack2(offset=0):
     # Scan them into our structure
     auxv = AUXV()
     while True:
-        const = int((p + 0).dereference()) & pwndbg.gdblib.arch.ptrmask
-        value = int((p + 1).dereference()) & pwndbg.gdblib.arch.ptrmask
+        const = int((p + 0).dereference()) & pwndbg.arch.ptrmask
+        value = int((p + 1).dereference()) & pwndbg.arch.ptrmask
 
         if const == AT_NULL:
             break
@@ -244,7 +244,7 @@ def walk_stack2(offset=0):
 
 def _get_execfn():
     # If the stack is not sane, this won't work
-    if not pwndbg.gdblib.memory.peek(pwndbg.gdblib.regs.sp):
+    if not pwndbg.memory.peek(pwndbg.regs.sp):
         return
 
     # QEMU does not put AT_EXECFN in the Auxiliary Vector
@@ -257,14 +257,14 @@ def _get_execfn():
     # 32e:1970|      0x7fffffffeff0 <-- 0x6f732e646c2f67 /* 'g/ld.so' */
     # 32f:1978|      0x7fffffffeff8 <-- 0
     # 330:1980|      0x7ffffffff000
-    addr = pwndbg.stack.find_upper_stack_boundary(pwndbg.gdblib.regs.sp)
+    addr = pwndbg.stack.find_upper_stack_boundary(pwndbg.regs.sp)
 
-    while pwndbg.gdblib.memory.byte(addr - 1) == 0:
+    while pwndbg.memory.byte(addr - 1) == 0:
         addr -= 1
 
-    while pwndbg.gdblib.memory.byte(addr - 1) != 0:
+    while pwndbg.memory.byte(addr - 1) != 0:
         addr -= 1
 
-    v = pwndbg.gdblib.strings.get(addr, 1024)
+    v = pwndbg.strings.get(addr, 1024)
     if v:
         return os.path.abspath(v)

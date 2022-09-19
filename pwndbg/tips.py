@@ -1,12 +1,11 @@
 from random import choice
-from typing import List
 
 TIPS = [
     # GDB hints
     "GDB's `apropos <topic>` command displays all registered commands that are related to the given <topic>",
     "GDB's `follow-fork-mode` parameter can be used to set whether to trace parent or child after fork() calls",
     'Use GDB\'s `dprintf` command to print all calls to given function. E.g. `dprintf malloc, "malloc(%p)\\n", (void*)$rdi` will print all malloc calls',
-    "Use GDB's `pi` command to run an interactive Python console where you can use Pwndbg APIs like `pwndbg.gdblib.memory.read(addr, len)`, `pwndbg.gdblib.memory.write(addr, data)`, `pwndbg.gdb.vmmap.get()` and so on!",
+    "Use GDB's `pi` command to run an interactive Python console where you can use Pwndbg APIs like `pwndbg.memory.read(addr, len)`, `pwndbg.memory.write(addr, data)`, `pwndbg.vmmap.get()` and so on!",
     "GDB's `set directories <path>` parameter can be used to debug e.g. glibc sources like the malloc/free functions!",
     # Pwndbg hints
     "GDB and Pwndbg parameters can be shown or set with `show <param>` and `set <param> <value>` GDB commands",
@@ -22,8 +21,7 @@ TIPS = [
     "Use the `procinfo` command for better process introspection (than the GDB's `info proc` command)",
     "Want to display each context panel in a separate tmux window? See https://github.com/pwndbg/pwndbg/blob/dev/FEATURES.md#splitting--layouting-context",
     "The $heap_base GDB variable can be used to refer to the starting address of the heap after running the `heap` command",
-    "Use the `errno` (or `errno <number>`) command to see the name of the last or provided (libc) error",
-]  # type: List[str]
+]
 
 
 def get_tip_of_the_day() -> str:

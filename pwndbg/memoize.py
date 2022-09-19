@@ -6,9 +6,10 @@ new library/objfile are loaded, etc.
 
 import functools
 import sys
-from typing import Any
-from typing import Callable
-from typing import List
+
+import gdb
+
+import pwndbg.events
 
 try:
     # Python >= 3.10
@@ -27,13 +28,13 @@ class memoize:
 
     caching = True
 
-    def __init__(self, func: Callable) -> None:
+    def __init__(self, func):
         self.func = func
         self.cache = {}
         self.caches.append(self)  # must be provided by base class
         functools.update_wrapper(self, func)
 
-    def __call__(self, *args: Any, **kwargs: Any) -> int:
+    def __call__(self, *args, **kwargs):
         how = None
 
         if not isinstance(args, Hashable):
@@ -62,10 +63,10 @@ class memoize:
         funcname = self.func.__module__ + "." + self.func.__name__
         return "<%s-memoized function %s>" % (self.kind, funcname)
 
-    def __get__(self, obj, objtype: type) -> Callable:
+    def __get__(self, obj, objtype):
         return functools.partial(self.__call__, obj)
 
-    def clear(self) -> None:
+    def clear(self):
         if debug:
             print("Clearing %s %r" % (self, self.cache))
         self.cache.clear()
@@ -76,7 +77,7 @@ class forever(memoize):
     Memoizes forever - for a pwndbg session or until `_reset` is called explicitly.
     """
 
-    caches = []  # type: List[forever]
+    caches = []
 
     @staticmethod
     def _reset():
@@ -85,11 +86,14 @@ class forever(memoize):
 
 
 class reset_on_stop(memoize):
-    caches = []  # type: List[reset_on_stop]
+    caches = []
     kind = "stop"
 
     @staticmethod
-    def __reset_on_stop() -> None:
+    @pwndbg.events.stop
+    @pwndbg.events.mem_changed
+    @pwndbg.events.reg_changed
+    def __reset_on_stop():
         for obj in reset_on_stop.caches:
             obj.cache.clear()
 
@@ -97,10 +101,11 @@ class reset_on_stop(memoize):
 
 
 class reset_on_prompt(memoize):
-    caches = []  # type: List[reset_on_prompt]
+    caches = []
     kind = "prompt"
 
     @staticmethod
+    @pwndbg.events.before_prompt
     def __reset_on_prompt():
         for obj in reset_on_prompt.caches:
             obj.cache.clear()
@@ -109,11 +114,12 @@ class reset_on_prompt(memoize):
 
 
 class reset_on_exit(memoize):
-    caches = []  # type: List[reset_on_exit]
+    caches = []
     kind = "exit"
 
     @staticmethod
-    def __reset_on_exit() -> None:
+    @pwndbg.events.exit
+    def __reset_on_exit():
         for obj in reset_on_exit.caches:
             obj.clear()
 
@@ -121,11 +127,12 @@ class reset_on_exit(memoize):
 
 
 class reset_on_objfile(memoize):
-    caches = []  # type: List[reset_on_objfile]
+    caches = []
     kind = "objfile"
 
     @staticmethod
-    def __reset_on_objfile() -> None:
+    @pwndbg.events.new_objfile
+    def __reset_on_objfile():
         for obj in reset_on_objfile.caches:
             obj.clear()
 
@@ -133,11 +140,12 @@ class reset_on_objfile(memoize):
 
 
 class reset_on_start(memoize):
-    caches = []  # type: List[reset_on_start]
+    caches = []
     kind = "start"
 
     @staticmethod
-    def __reset_on_start() -> None:
+    @pwndbg.events.start
+    def __reset_on_start():
         for obj in reset_on_start.caches:
             obj.clear()
 
@@ -145,11 +153,12 @@ class reset_on_start(memoize):
 
 
 class reset_on_cont(memoize):
-    caches = []  # type: List[reset_on_cont]
+    caches = []
     kind = "cont"
 
     @staticmethod
-    def __reset_on_cont() -> None:
+    @pwndbg.events.cont
+    def __reset_on_cont():
         for obj in reset_on_cont.caches:
             obj.clear()
 
@@ -157,16 +166,18 @@ class reset_on_cont(memoize):
 
 
 class while_running(memoize):
-    caches = []  # type: List[while_running]
+    caches = []
     kind = "running"
     caching = False
 
     @staticmethod
-    def _start_caching() -> None:
+    @pwndbg.events.start
+    def __start_caching():
         while_running.caching = True
 
     @staticmethod
-    def __reset_while_running() -> None:
+    @pwndbg.events.exit
+    def __reset_while_running():
         for obj in while_running.caches:
             obj.clear()
         while_running.caching = False

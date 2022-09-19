@@ -9,13 +9,13 @@ binaries do things to remap the stack (e.g. pwnies' postit).
 import gdb
 
 import pwndbg.elf
-import pwndbg.gdblib.events
-import pwndbg.gdblib.memory
-import pwndbg.lib.memoize
+import pwndbg.events
+import pwndbg.memoize
+import pwndbg.memory
 
 # Dictionary of stack ranges.
 # Key is the gdb thread ptid
-# Value is a pwndbg.lib.memory.Page object
+# Value is a pwndbg.memory.Page object
 stacks = {}
 
 # Whether the stack is protected by NX.
@@ -25,7 +25,7 @@ nx = False
 
 def find(address):
     """
-    Returns a pwndbg.lib.memory.Page object which corresponds to the
+    Returns a pwndbg.memory.Page object which corresponds to the
     currently-loaded stack.
     """
     if not stacks:
@@ -37,18 +37,18 @@ def find(address):
 
 
 def find_upper_stack_boundary(stack_ptr, max_pages=1024):
-    stack_ptr = pwndbg.lib.memory.page_align(int(stack_ptr))
+    stack_ptr = pwndbg.memory.page_align(int(stack_ptr))
 
     # We can't get the stack size from stack layout and page fault on bare metal mode,
     # so we return current page as a walkaround.
-    if not pwndbg.gdblib.abi.linux:
-        return stack_ptr + pwndbg.lib.memory.PAGE_SIZE
+    if not pwndbg.abi.linux:
+        return stack_ptr + pwndbg.memory.PAGE_SIZE
 
-    return pwndbg.gdblib.memory.find_upper_boundary(stack_ptr, max_pages)
+    return pwndbg.memory.find_upper_boundary(stack_ptr, max_pages)
 
 
-@pwndbg.gdblib.events.stop
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.events.stop
+@pwndbg.memoize.reset_on_stop
 def update():
     """
     For each running thread, updates the known address range
@@ -58,7 +58,7 @@ def update():
     try:
         for thread in gdb.selected_inferior().threads():
             thread.switch()
-            sp = pwndbg.gdblib.regs.sp
+            sp = pwndbg.regs.sp
 
             # Skip if sp is None or 0
             # (it might be 0 if we debug a qemu kernel)
@@ -74,7 +74,7 @@ def update():
             if page is None:
                 start = sp_low
                 stop = find_upper_stack_boundary(sp)
-                page = pwndbg.lib.memory.Page(
+                page = pwndbg.memory.Page(
                     start, stop - start, 6 if not is_executable() else 7, 0, "[stack]"
                 )
                 stacks[thread.ptid] = page
@@ -97,15 +97,15 @@ def update():
             curr_thread.switch()
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def current():
     """
     Returns the bounds for the stack for the current thread.
     """
-    return find(pwndbg.gdblib.regs.sp)
+    return find(pwndbg.regs.sp)
 
 
-@pwndbg.gdblib.events.exit
+@pwndbg.events.exit
 def clear():
     """
     Clears everything we know about any stack memory ranges.
@@ -117,8 +117,8 @@ def clear():
     nx = False
 
 
-@pwndbg.gdblib.events.stop
-@pwndbg.lib.memoize.reset_on_exit
+@pwndbg.events.stop
+@pwndbg.memoize.reset_on_exit
 def is_executable():
     global nx
     nx = False

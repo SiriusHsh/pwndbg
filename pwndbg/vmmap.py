@@ -7,21 +7,22 @@ system has /proc/$$/maps, which backs 'info proc mapping'.
 """
 import bisect
 import os
+import sys
 
 import gdb
 
+import pwndbg.abi
 import pwndbg.elf
+import pwndbg.events
 import pwndbg.file
-import pwndbg.gdblib.abi
-import pwndbg.gdblib.events
-import pwndbg.gdblib.memory
-import pwndbg.gdblib.qemu
-import pwndbg.gdblib.regs
-import pwndbg.gdblib.remote
-import pwndbg.gdblib.typeinfo
-import pwndbg.lib.memoize
+import pwndbg.memoize
+import pwndbg.memory
 import pwndbg.proc
+import pwndbg.qemu
+import pwndbg.regs
+import pwndbg.remote
 import pwndbg.stack
+import pwndbg.typeinfo
 
 # List of manually-explored pages which were discovered
 # by analyzing the stack or register context.
@@ -38,25 +39,14 @@ kernel_vmmap_via_pt = pwndbg.config.Parameter(
 )
 
 
-@pwndbg.lib.memoize.reset_on_objfile
-@pwndbg.lib.memoize.reset_on_start
+@pwndbg.memoize.reset_on_objfile
+@pwndbg.memoize.reset_on_start
 def is_corefile():
-    """
-    For example output use:
-        gdb ./tests/binaries/crash_simple.out -ex run -ex 'generate-core-file ./core' -ex 'quit'
-
-    And then use:
-        gdb ./tests/binaries/crash_simple.out -core ./core -ex 'info target'
-    And:
-        gdb -core ./core
-
-    As the two differ in output slighty.
-    """
-    return "Local core dump file:\n" in gdb.execute("info target", to_string=True)
+    return gdb.execute("info target", to_string=True).startswith("Local core dump file")
 
 
-@pwndbg.lib.memoize.reset_on_start
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_start
+@pwndbg.memoize.reset_on_stop
 def get():
     # Note: debugging a coredump does still show proc.alive == True
     if not pwndbg.proc.alive:
@@ -66,15 +56,15 @@ def get():
 
     if (
         not pages
-        and pwndbg.gdblib.qemu.is_qemu_kernel()
-        and pwndbg.gdblib.arch.current in ("i386", "x86-64", "aarch64", "riscv:rv64")
+        and pwndbg.qemu.is_qemu_kernel()
+        and pwndbg.arch.current in ("i386", "x86-64", "aarch64", "riscv:rv64")
     ):
         if kernel_vmmap_via_pt:
             pages.extend(kernel_vmmap_via_page_tables())
         else:
             pages.extend(kernel_vmmap_via_monitor_info_mem())
 
-    if not pages and is_corefile():
+    if not pages:
         pages.extend(coredump_maps())
 
     # TODO/FIXME: Do we still need it after coredump_maps()?
@@ -91,8 +81,8 @@ def get():
         if pages:
             pages.extend(info_sharedlibrary())
         else:
-            if pwndbg.gdblib.qemu.is_qemu():
-                return (pwndbg.lib.memory.Page(0, pwndbg.gdblib.arch.ptrmask, 7, 0, "[qemu]"),)
+            if pwndbg.qemu.is_qemu():
+                return (pwndbg.memory.Page(0, pwndbg.arch.ptrmask, 7, 0, "[qemu]"),)
             pages.extend(info_files())
 
         pages.extend(pwndbg.stack.stacks.values())
@@ -103,7 +93,7 @@ def get():
     return tuple(pages)
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def find(address):
     if address is None:
         return None
@@ -117,7 +107,7 @@ def find(address):
     return explore(address)
 
 
-@pwndbg.gdblib.abi.LinuxOnly()
+@pwndbg.abi.LinuxOnly()
 def explore(address_maybe):
     """
     Given a potential address, check to see what permissions it has.
@@ -135,14 +125,14 @@ def explore(address_maybe):
     if proc_pid_maps():
         return None
 
-    address_maybe = pwndbg.lib.memory.page_align(address_maybe)
+    address_maybe = pwndbg.memory.page_align(address_maybe)
 
-    flags = 4 if pwndbg.gdblib.memory.peek(address_maybe) else 0
+    flags = 4 if pwndbg.memory.peek(address_maybe) else 0
 
     if not flags:
         return None
 
-    flags |= 2 if pwndbg.gdblib.memory.poke(address_maybe) else 0
+    flags |= 2 if pwndbg.memory.poke(address_maybe) else 0
     flags |= 1 if not pwndbg.stack.nx else 0
 
     page = find_boundaries(address_maybe)
@@ -155,13 +145,13 @@ def explore(address_maybe):
 
 
 # Automatically ensure that all registers are explored on each stop
-# @pwndbg.gdblib.events.stop
+# @pwndbg.events.stop
 def explore_registers():
-    for regname in pwndbg.gdblib.regs.common:
-        find(pwndbg.gdblib.regs[regname])
+    for regname in pwndbg.regs.common:
+        find(pwndbg.regs[regname])
 
 
-# @pwndbg.gdblib.events.exit
+# @pwndbg.events.exit
 def clear_explored_pages():
     while explored_pages:
         explored_pages.pop()
@@ -173,7 +163,7 @@ def add_custom_page(page):
     # Reset all the cache
     # We can not reset get() only, since the result may be used by others.
     # TODO: avoid flush all caches
-    pwndbg.lib.memoize.reset()
+    pwndbg.memoize.reset()
 
 
 def clear_custom_page():
@@ -183,11 +173,11 @@ def clear_custom_page():
     # Reset all the cache
     # We can not reset get() only, since the result may be used by others.
     # TODO: avoid flush all caches
-    pwndbg.lib.memoize.reset()
+    pwndbg.memoize.reset()
 
 
-@pwndbg.lib.memoize.reset_on_objfile
-@pwndbg.lib.memoize.reset_on_start
+@pwndbg.memoize.reset_on_objfile
+@pwndbg.memoize.reset_on_start
 def coredump_maps():
     """
     Parses `info proc mappings` and `maintenance info sections`
@@ -211,29 +201,16 @@ def coredump_maps():
             continue
 
         # Note: we set flags=0 because we do not have this information here
-        pages.append(pwndbg.lib.memory.Page(start, size, 0, offset, objfile))
+        pages.append(pwndbg.memory.Page(start, size, 0, offset, objfile))
 
-    started_sections = False
     for line in gdb.execute("maintenance info sections", to_string=True).splitlines():
-        if not started_sections:
-            if "Core file:" in line:
-                started_sections = True
-            continue
-
         # We look for lines like:
         # ['[9]', '0x00000000->0x00000150', 'at', '0x00098c40:', '.auxv', 'HAS_CONTENTS']
         # ['[15]', '0x555555555000->0x555555556000', 'at', '0x00001430:', 'load2', 'ALLOC', 'LOAD', 'READONLY', 'CODE', 'HAS_CONTENTS']
         try:
-            _idx, start_end, _at_str, _at, name, *flags_list = line.split()
+            _idx, start_end, _at, offset, name, *flags_list = line.split()
             start, end = map(lambda v: int(v, 16), start_end.split("->"))
-
-            # Skip pages with start=0x0, this is unlikely this is valid vmmap
-            if start == 0:
-                continue
-
-            # Tried taking this from the 'at 0x...' value
-            # but it turns out to be invalid, so keep it 0 until we find better way
-            offset = 0
+            offset = int(offset[:-1], 16)
         except (IndexError, ValueError):
             continue
 
@@ -258,7 +235,7 @@ def coredump_maps():
         if known_page:
             continue
 
-        pages.append(pwndbg.lib.memory.Page(start, end - start, flags, offset, name))
+        pages.append(pwndbg.memory.Page(start, end - start, flags, offset, name))
 
     if not pages:
         return tuple()
@@ -267,13 +244,12 @@ def coredump_maps():
     vsyscall_page = pages[-1]
     if vsyscall_page.start > 0xFFFFFFFFFF000000 and vsyscall_page.flags & 1:
         vsyscall_page.objfile = "[vsyscall]"
-        vsyscall_page.offset = 0
 
     # Detect stack based on addresses in AUXV from stack memory
     stack_addr = None
 
     # TODO/FIXME: Can we uxe `pwndbg.auxv.get()` for this somehow?
-    auxv = pwndbg.gdblib.info.auxv().splitlines()
+    auxv = pwndbg.info.auxv().splitlines()
     for line in auxv:
         if "AT_EXECFN" in line:
             try:
@@ -287,25 +263,24 @@ def coredump_maps():
             if stack_addr in page:
                 page.objfile = "[stack]"
                 page.flags |= 6
-                page.offset = 0
                 break
 
     return tuple(pages)
 
 
-@pwndbg.lib.memoize.reset_on_start
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_start
+@pwndbg.memoize.reset_on_stop
 def proc_pid_maps():
     """
     Parse the contents of /proc/$PID/maps on the server.
 
     Returns:
-        A list of pwndbg.lib.memory.Page objects.
+        A list of pwndbg.memory.Page objects.
     """
 
     # If we debug remotely a qemu-user or qemu-system target,
     # there is no point of hitting things further
-    if pwndbg.gdblib.qemu.is_qemu():
+    if pwndbg.qemu.is_qemu():
         return tuple()
 
     # Example /proc/$pid/maps
@@ -370,13 +345,13 @@ def proc_pid_maps():
         if "x" in perm:
             flags |= 1
 
-        page = pwndbg.lib.memory.Page(start, size, flags, offset, objfile)
+        page = pwndbg.memory.Page(start, size, flags, offset, objfile)
         pages.append(page)
 
     return tuple(pages)
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def kernel_vmmap_via_page_tables():
     import pt
 
@@ -394,7 +369,7 @@ def kernel_vmmap_via_page_tables():
             flags |= 2
         if page.pwndbg_is_executable():
             flags |= 1
-        retpages.append(pwndbg.lib.memory.Page(start, size, flags, 0, "<pt>"))
+        retpages.append(pwndbg.memory.Page(start, size, flags, 0, "<pt>"))
     return tuple(retpages)
 
 
@@ -449,12 +424,12 @@ def kernel_vmmap_via_monitor_info_mem():
         # if 'x' in perm: flags |= 1
         flags |= 1
 
-        pages.append(pwndbg.lib.memory.Page(start, size, flags, 0, "<qemu>"))
+        pages.append(pwndbg.memory.Page(start, size, flags, 0, "<qemu>"))
 
     return tuple(pages)
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def info_sharedlibrary():
     """
     Parses the output of `info sharedlibrary`.
@@ -466,7 +441,7 @@ def info_sharedlibrary():
     page permissions for every mapped page in the ELF.
 
     Returns:
-        A list of pwndbg.lib.memory.Page objects.
+        A list of pwndbg.memory.Page objects.
     """
 
     exmaple_info_sharedlibrary_freebsd = """
@@ -501,7 +476,7 @@ def info_sharedlibrary():
     return tuple(sorted(pages))
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def info_files():
 
     example_info_files_linues = """
@@ -561,7 +536,7 @@ def info_files():
     return tuple(pages)
 
 
-@pwndbg.lib.memoize.reset_on_exit
+@pwndbg.memoize.reset_on_exit
 def info_auxv(skip_exe=False):
     """
     Extracts the name of the executable from the output of the command
@@ -572,7 +547,7 @@ def info_auxv(skip_exe=False):
         skip_exe(bool): Do not return any mappings that belong to the exe.
 
     Returns:
-        A list of pwndbg.lib.memory.Page objects.
+        A list of pwndbg.memory.Page objects.
     """
     auxv = pwndbg.auxv.get()
 
@@ -603,13 +578,13 @@ def find_boundaries(addr, name="", min=0):
     Given a single address, find all contiguous pages
     which are mapped.
     """
-    start = pwndbg.gdblib.memory.find_lower_boundary(addr)
-    end = pwndbg.gdblib.memory.find_upper_boundary(addr)
+    start = pwndbg.memory.find_lower_boundary(addr)
+    end = pwndbg.memory.find_upper_boundary(addr)
 
     if start < min:
         start = min
 
-    return pwndbg.lib.memory.Page(start, end - start, 4, 0, name)
+    return pwndbg.memory.Page(start, end - start, 4, 0, name)
 
 
 def check_aslr():
@@ -619,7 +594,7 @@ def check_aslr():
     None is returned when we can't detect ASLR.
     """
     # QEMU does not support this concept.
-    if pwndbg.gdblib.qemu.is_qemu():
+    if pwndbg.qemu.is_qemu():
         return None, "Could not detect ASLR on QEMU targets"
 
     # Systemwide ASLR is disabled
@@ -629,6 +604,7 @@ def check_aslr():
             return False, "kernel.randomize_va_space == 0"
     except Exception as e:
         print("Could not check ASLR: can't read randomize_va_space")
+        pass
 
     # Check the personality of the process
     if pwndbg.proc.alive:
@@ -638,6 +614,7 @@ def check_aslr():
             return (personality & 0x40000 == 0), "read status from process' personality"
         except Exception:
             print("Could not check ASLR: can't read process' personality")
+            pass
 
     # Just go with whatever GDB says it did.
     #
@@ -647,8 +624,8 @@ def check_aslr():
     return ("is off." in output), "show disable-randomization"
 
 
-@pwndbg.gdblib.events.cont
+@pwndbg.events.cont
 def mark_pc_as_executable():
-    mapping = find(pwndbg.gdblib.regs.pc)
+    mapping = find(pwndbg.regs.pc)
     if mapping and not mapping.execute:
         mapping.flags |= os.X_OK

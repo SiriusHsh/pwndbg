@@ -1,7 +1,9 @@
 import argparse
 
+import gdb
+
 import pwndbg.commands
-import pwndbg.gdblib.memory
+import pwndbg.memory
 import pwndbg.symbol
 import pwndbg.vmmap
 from pwndbg.color import message
@@ -23,11 +25,13 @@ def defcon_heap(addr=0x2AAAAAAD5000):
         free = heap_freebins()
     except Exception as e:
         print(e)
+        pass
 
     try:
         heap_allocations(addr, free)
     except Exception as e:
         print(e)
+        pass
 
 
 def heap_freebins(addr=0x0602558):
@@ -37,25 +41,25 @@ def heap_freebins(addr=0x0602558):
     # addr = 0x060E360
 
     print("    " + hex(addr))
-    addr = pwndbg.gdblib.memory.u64(addr)
+    addr = pwndbg.memory.u64(addr)
     free = []
 
-    while addr and pwndbg.gdblib.memory.peek(addr):
+    while addr and pwndbg.memory.peek(addr):
         free.append(addr)
-        size = pwndbg.gdblib.memory.u64(addr)
+        size = pwndbg.memory.u64(addr)
 
         in_use = size & 1
         size &= ~3
 
-        linkedlist = (addr + 8 + size - 0x10) & pwndbg.gdblib.arch.ptrmask
+        linkedlist = (addr + 8 + size - 0x10) & pwndbg.arch.ptrmask
 
         try:
-            bk = pwndbg.gdblib.memory.u64(linkedlist)
+            bk = pwndbg.memory.u64(linkedlist)
         except Exception:
             bk = None
 
         try:
-            fd = pwndbg.gdblib.memory.u64(linkedlist + 8)
+            fd = pwndbg.memory.u64(linkedlist + 8)
         except Exception:
             fd = None
 
@@ -67,8 +71,8 @@ def heap_freebins(addr=0x0602558):
 
 
 def heap_allocations(addr, free):
-    while addr and pwndbg.gdblib.memory.peek(addr):
-        size = pwndbg.gdblib.memory.u64(addr)
+    while addr and pwndbg.memory.peek(addr):
+        size = pwndbg.memory.u64(addr)
         in_use = size & 1
         flags = size & 3
         done = not (size & 2)
@@ -82,13 +86,13 @@ def heap_allocations(addr, free):
         if not in_use or addr in free:
             print(message.hint("%#016x - usersize=%#x - [FREE %i]" % (addr, size, flags)))
 
-            linkedlist = (addr + 8 + size - 0x10) & pwndbg.gdblib.arch.ptrmask
+            linkedlist = (addr + 8 + size - 0x10) & pwndbg.arch.ptrmask
 
-            if not pwndbg.gdblib.memory.peek(linkedlist):
+            if not pwndbg.memory.peek(linkedlist):
                 print("Corrupted? (%#x)" % linkedlist)
 
-            bk = pwndbg.gdblib.memory.u64(linkedlist)
-            fd = pwndbg.gdblib.memory.u64(linkedlist + 8)
+            bk = pwndbg.memory.u64(linkedlist)
+            fd = pwndbg.memory.u64(linkedlist + 8)
 
             print("  @ %#x" % linkedlist)
             print("    bk: %#x" % bk)
@@ -108,16 +112,16 @@ def ll(addr=0x637128):
     .bss:0000000000637128 ; core_entry *core_list
     .bss:0000000000637128 core_list       dq ?                    ; DATA XREF: start_main_randomize+19Eo
     """
-    fd = pwndbg.gdblib.memory.u64(addr)
+    fd = pwndbg.memory.u64(addr)
     print("%16s%#16s %#16s %#16s %#16s" % ("", "o", "v", "bk", "fd"))
 
     while fd:
-        o = pwndbg.gdblib.memory.u64(fd)
-        v = pwndbg.gdblib.memory.u64(o)
+        o = pwndbg.memory.u64(fd)
+        v = pwndbg.memory.u64(o)
 
         v = pwndbg.symbol.get(v - 0x10) or hex(v)
 
         at = fd
-        bk = pwndbg.gdblib.memory.u64(fd + 8)
-        fd = pwndbg.gdblib.memory.u64(fd + 16)
+        bk = pwndbg.memory.u64(fd + 8)
+        fd = pwndbg.memory.u64(fd + 16)
         print("@ %#-15x%#16x %16s %#16x %#16x" % (at, o, v, bk, fd))

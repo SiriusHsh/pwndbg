@@ -16,12 +16,12 @@ file_lists = {}  # This saves all comments.
 @pwndbg.commands.OnlyWhenRunning
 def comm(addr=None, comment=None):
     if addr is None:
-        addr = hex(pwndbg.gdblib.regs.pc)
+        addr = hex(pwndbg.regs.pc)
     try:
         with open(".gdb_comments", "a+") as f:
             target = int(addr, 0)
 
-            if not pwndbg.gdblib.memory.peek(target):
+            if not pwndbg.memory.peek(target):
                 print(message.error("Invalid Address %#x" % target))
 
             else:

@@ -1,7 +1,7 @@
 import argparse
 
 import gdb
-from capstone import *  # noqa: F403
+from capstone import *
 
 import pwndbg.arguments
 import pwndbg.color
@@ -12,10 +12,10 @@ import pwndbg.color.theme
 import pwndbg.commands.comments
 import pwndbg.config
 import pwndbg.disasm
-import pwndbg.gdblib.regs
-import pwndbg.gdblib.strings
+import pwndbg.functions
 import pwndbg.ida
-import pwndbg.lib.functions
+import pwndbg.regs
+import pwndbg.strings
 import pwndbg.symbol
 import pwndbg.ui
 import pwndbg.vmmap
@@ -77,7 +77,7 @@ def nearpc(pc=None, lines=None, to_string=False, emulate=False):
     result = []
 
     if pc is not None:
-        pc = gdb.Value(pc).cast(pwndbg.gdblib.typeinfo.pvoid)
+        pc = gdb.Value(pc).cast(pwndbg.typeinfo.pvoid)
 
     # Fix the case where we only have one argument, and
     # it's a small value.
@@ -86,7 +86,7 @@ def nearpc(pc=None, lines=None, to_string=False, emulate=False):
         pc = None
 
     if pc is None:
-        pc = pwndbg.gdblib.regs.pc
+        pc = pwndbg.regs.pc
 
     if lines is None:
         lines = nearpc_lines // 2
@@ -95,7 +95,7 @@ def nearpc(pc=None, lines=None, to_string=False, emulate=False):
     lines = int(lines)
 
     # Check whether we can even read this address
-    if not pwndbg.gdblib.memory.peek(pc):
+    if not pwndbg.memory.peek(pc):
         result.append(message.error("Invalid address %#x" % pc))
 
     # # Load source data if it's available
@@ -115,7 +115,7 @@ def nearpc(pc=None, lines=None, to_string=False, emulate=False):
     #             pc_to_linenos[line.pc].append(line.line)
     instructions = pwndbg.disasm.near(pc, lines, emulate=emulate, show_prev_insns=not nearpc.repeat)
 
-    if pwndbg.gdblib.memory.peek(pc) and not instructions:
+    if pwndbg.memory.peek(pc) and not instructions:
         result.append(message.error("Invalid instructions at %#x" % pc))
 
     # In case $pc is in a new map we don't know about,

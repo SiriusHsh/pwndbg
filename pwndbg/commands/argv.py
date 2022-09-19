@@ -2,16 +2,16 @@ import argparse
 
 import gdb
 
+import pwndbg.arch
+import pwndbg.argv
 import pwndbg.commands
-import pwndbg.gdblib.arch
-import pwndbg.gdblib.argv
-import pwndbg.gdblib.typeinfo
+import pwndbg.typeinfo
 
 
 @pwndbg.commands.ArgparsedCommand("Prints out the number of arguments.")
 @pwndbg.commands.OnlyWhenRunning
 def argc():
-    print(pwndbg.gdblib.argv.argc)
+    print(pwndbg.argv.argc)
 
 
 parser = argparse.ArgumentParser()
@@ -24,12 +24,12 @@ parser.add_argument(
 @pwndbg.commands.ArgparsedCommand(parser, aliases=["args"])
 @pwndbg.commands.OnlyWhenRunning
 def argv(i=None):
-    start = pwndbg.gdblib.argv.argv
-    n = pwndbg.gdblib.argv.argc + 1
+    start = pwndbg.argv.argv
+    n = pwndbg.argv.argc + 1
 
     if i is not None:
         n = 1
-        start += (pwndbg.gdblib.arch.ptrsize) * i
+        start += (pwndbg.arch.ptrsize) * i
 
     pwndbg.commands.telescope.telescope(start, n)
 
@@ -50,8 +50,8 @@ def envp(name=None):
     """
     Prints out the contents of the environment.
     """
-    start = pwndbg.gdblib.argv.envp
-    n = pwndbg.gdblib.argv.envc + 1
+    start = pwndbg.argv.envp
+    n = pwndbg.argv.envc + 1
 
     return pwndbg.commands.telescope.telescope(start, n)
 
@@ -67,11 +67,11 @@ class argv_function(gdb.Function):
     def invoke(self, number=0):
         number = int(number)
 
-        if number > pwndbg.gdblib.argv.argc:
+        if number > pwndbg.argv.argc:
             return 0
 
-        ppchar = pwndbg.gdblib.typeinfo.pchar.pointer()
-        value = gdb.Value(pwndbg.gdblib.argv.argv)
+        ppchar = pwndbg.typeinfo.pchar.pointer()
+        value = gdb.Value(pwndbg.argv.argv)
         argv = value.cast(ppchar)
         return (argv + number).dereference()
 
@@ -90,11 +90,11 @@ class envp_function(gdb.Function):
     def invoke(self, number=0):
         number = int(number)
 
-        if number > pwndbg.gdblib.argv.envc:
-            return pwndbg.gdblib.typeinfo.void
+        if number > pwndbg.argv.envc:
+            return pwndbg.typeinfo.void
 
-        ppchar = pwndbg.gdblib.typeinfo.pchar.pointer()
-        value = gdb.Value(pwndbg.gdblib.argv.envp)
+        ppchar = pwndbg.typeinfo.pchar.pointer()
+        value = gdb.Value(pwndbg.argv.envp)
         envp = value.cast(ppchar)
         return (envp + number).dereference()
 
@@ -111,7 +111,7 @@ class argc_function(gdb.Function):
         super(argc_function, self).__init__("argc")
 
     def invoke(self, number=0):
-        return pwndbg.gdblib.argv.argc
+        return pwndbg.argv.argc
 
 
 argc_function()
@@ -127,17 +127,17 @@ class environ_function(gdb.Function):
 
     def invoke(self, name):
         name = name.string() + "="
-        ppchar = pwndbg.gdblib.typeinfo.pchar.pointer()
-        value = gdb.Value(pwndbg.gdblib.argv.envp)
+        ppchar = pwndbg.typeinfo.pchar.pointer()
+        value = gdb.Value(pwndbg.argv.envp)
         envp = value.cast(ppchar)
 
-        for i in range(pwndbg.gdblib.argv.envc):
+        for i in range(pwndbg.argv.envc):
             ptr = (envp + i).dereference()
             sz = ptr.string()
             if sz.startswith(name):
                 return ptr
 
-        return pwndbg.gdblib.typeinfo.void
+        return pwndbg.typeinfo.void
 
 
 environ_function()

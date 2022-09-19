@@ -5,10 +5,12 @@ Get information about the GLibc
 import functools
 import re
 
+import gdb
+
 import pwndbg.config
-import pwndbg.gdblib.memory
 import pwndbg.heap
-import pwndbg.lib.memoize
+import pwndbg.memoize
+import pwndbg.memory
 import pwndbg.proc
 import pwndbg.search
 import pwndbg.symbol
@@ -17,34 +19,17 @@ safe_lnk = pwndbg.config.Parameter(
     "safe-linking", "auto", "whether glibc use safe-linking (on/off/auto)"
 )
 
-glibc_version = pwndbg.config.Parameter("glibc", "", "GLIBC version for heuristics", scope="heap")
-
 
 @pwndbg.proc.OnlyWhenRunning
+@pwndbg.memoize.reset_on_objfile
 def get_version():
-    if glibc_version.value:
-        ret = re.search(r"(\d+)\.(\d+)", glibc_version.value)
-        if ret:
-            return tuple(int(_) for _ in ret.groups())
-        else:
-            raise ValueError(
-                "Invalid GLIBC version: `%s`, you should provide something like: 2.31 or 2.34"
-                % glibc_version.value
-            )
-    return _get_version()
-
-
-@pwndbg.proc.OnlyWhenRunning
-@pwndbg.lib.memoize.reset_on_start
-@pwndbg.lib.memoize.reset_on_objfile
-def _get_version():
     if pwndbg.heap.current.libc_has_debug_syms():
         addr = pwndbg.symbol.address(b"__libc_version")
         if addr is not None:
-            ver = pwndbg.gdblib.memory.string(addr)
+            ver = pwndbg.memory.string(addr)
             return tuple([int(_) for _ in ver.split(b".")])
     for addr in pwndbg.search.search(b"GNU C Library"):
-        banner = pwndbg.gdblib.memory.string(addr)
+        banner = pwndbg.memory.string(addr)
         ret = re.search(rb"release version (\d+)\.(\d+)", banner)
         if ret:
             return tuple(int(_) for _ in ret.groups())

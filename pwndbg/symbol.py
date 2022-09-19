@@ -16,16 +16,15 @@ import elftools.elf.elffile
 import elftools.elf.segments
 import gdb
 
+import pwndbg.arch
 import pwndbg.elf
+import pwndbg.events
 import pwndbg.file
-import pwndbg.gdblib.android
-import pwndbg.gdblib.arch
-import pwndbg.gdblib.events
-import pwndbg.gdblib.memory
-import pwndbg.gdblib.qemu
-import pwndbg.gdblib.remote
 import pwndbg.ida
-import pwndbg.lib.memoize
+import pwndbg.memoize
+import pwndbg.memory
+import pwndbg.qemu
+import pwndbg.remote
 import pwndbg.stack
 import pwndbg.vmmap
 
@@ -64,7 +63,7 @@ remote_files = {}
 remote_files_dir = None
 
 
-@pwndbg.gdblib.events.exit
+@pwndbg.events.exit
 def reset_remote_files():
     global remote_files
     global remote_files_dir
@@ -74,17 +73,17 @@ def reset_remote_files():
         remote_files_dir = None
 
 
-@pwndbg.gdblib.events.new_objfile
+@pwndbg.events.new_objfile
 def autofetch():
     """ """
     global remote_files_dir
-    if not pwndbg.gdblib.remote.is_remote():
+    if not pwndbg.remote.is_remote():
         return
 
-    if pwndbg.gdblib.qemu.is_qemu_usermode():
+    if pwndbg.qemu.is_qemu_usermode():
         return
 
-    if pwndbg.gdblib.android.is_android():
+    if pwndbg.android.is_android():
         return
 
     if not remote_files_dir:
@@ -153,13 +152,13 @@ def autofetch():
         # gdb.execute(' '.join(gdb_command), from_tty=False, to_string=True)
 
 
-@pwndbg.lib.memoize.reset_on_objfile
+@pwndbg.memoize.reset_on_objfile
 def get(address, gdb_only=False):
     """
     Retrieve the textual name for a symbol
     """
     # Fast path
-    if address < pwndbg.gdblib.memory.MMAP_MIN_ADDR or address >= ((1 << 64) - 1):
+    if address < pwndbg.memory.MMAP_MIN_ADDR or address >= ((1 << 64) - 1):
         return ""
 
     # Don't look up stack addresses
@@ -193,7 +192,7 @@ def get(address, gdb_only=False):
     return ""
 
 
-@pwndbg.lib.memoize.reset_on_objfile
+@pwndbg.memoize.reset_on_objfile
 def address(symbol, allow_unmapped=False):
     if isinstance(symbol, int):
         return symbol
@@ -235,13 +234,13 @@ def address(symbol, allow_unmapped=False):
         pass
 
 
-@pwndbg.gdblib.events.stop
-@pwndbg.lib.memoize.reset_on_start
+@pwndbg.events.stop
+@pwndbg.memoize.reset_on_start
 def add_main_exe_to_symbols():
-    if not pwndbg.gdblib.remote.is_remote():
+    if not pwndbg.remote.is_remote():
         return
 
-    if pwndbg.gdblib.android.is_android():
+    if pwndbg.android.is_android():
         return
 
     exe = pwndbg.elf.exe()
@@ -261,15 +260,15 @@ def add_main_exe_to_symbols():
         return
 
     path = mmap.objfile
-    if path and (pwndbg.gdblib.arch.endian == pwndbg.gdblib.arch.native_endian):
+    if path and (pwndbg.arch.endian == pwndbg.arch.native_endian):
         try:
             gdb.execute("add-symbol-file %s" % (path,), from_tty=False, to_string=True)
         except gdb.error:
             pass
 
 
-@pwndbg.lib.memoize.reset_on_stop
-@pwndbg.lib.memoize.reset_on_start
+@pwndbg.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_start
 def selected_frame_source_absolute_filename():
     """
     Retrieve the symbol table’s source absolute file name from the selected frame.

@@ -7,13 +7,13 @@ import collections
 
 import capstone
 import gdb
-from capstone import *  # noqa: F403
+from capstone import *
 
+import pwndbg.arch
 import pwndbg.disasm.arch
-import pwndbg.gdblib.arch
-import pwndbg.gdblib.memory
 import pwndbg.ida
-import pwndbg.lib.memoize
+import pwndbg.memoize
+import pwndbg.memory
 import pwndbg.symbol
 
 try:
@@ -57,7 +57,7 @@ VariableInstructionSizeMax = {
 backward_cache = collections.defaultdict(lambda: None)
 
 
-@pwndbg.lib.memoize.reset_on_objfile
+@pwndbg.memoize.reset_on_objfile
 def get_disassembler_cached(arch, ptrsize, endian, extra=None):
     arch = CapstoneArch[arch]
 
@@ -88,37 +88,32 @@ def get_disassembler_cached(arch, ptrsize, endian, extra=None):
 
 
 def get_disassembler(pc):
-    if pwndbg.gdblib.arch.current == "armcm":
+    if pwndbg.arch.current == "armcm":
         extra = (
-            (CS_MODE_MCLASS | CS_MODE_THUMB)
-            if (pwndbg.gdblib.regs.xpsr & (1 << 24))
-            else CS_MODE_MCLASS
+            (CS_MODE_MCLASS | CS_MODE_THUMB) if (pwndbg.regs.xpsr & (1 << 24)) else CS_MODE_MCLASS
         )
 
-    elif pwndbg.gdblib.arch.current in ("arm", "aarch64"):
-        extra = CS_MODE_THUMB if (pwndbg.gdblib.regs.cpsr & (1 << 5)) else CS_MODE_ARM
+    elif pwndbg.arch.current in ("arm", "aarch64"):
+        extra = CS_MODE_THUMB if (pwndbg.regs.cpsr & (1 << 5)) else CS_MODE_ARM
 
-    elif pwndbg.gdblib.arch.current == "sparc":
+    elif pwndbg.arch.current == "sparc":
         if "v9" in gdb.newest_frame().architecture().name():
             extra = CS_MODE_V9
         else:
             # The ptrsize base modes cause capstone.CsError: Invalid mode (CS_ERR_MODE)
             extra = 0
 
-    elif pwndbg.gdblib.arch.current == "i8086":
+    elif pwndbg.arch.current == "i8086":
         extra = CS_MODE_16
 
-    elif (
-        pwndbg.gdblib.arch.current == "mips"
-        and "isa32r6" in gdb.newest_frame().architecture().name()
-    ):
+    elif pwndbg.arch.current == "mips" and "isa32r6" in gdb.newest_frame().architecture().name():
         extra = CS_MODE_MIPS32R6
 
     else:
         extra = None
 
     return get_disassembler_cached(
-        pwndbg.gdblib.arch.current, pwndbg.gdblib.arch.ptrsize, pwndbg.gdblib.arch.endian, extra
+        pwndbg.arch.current, pwndbg.arch.ptrsize, pwndbg.arch.endian, extra
     )
 
 
@@ -137,13 +132,13 @@ class SimpleInstruction:
         self.condition = False
 
 
-@pwndbg.lib.memoize.reset_on_cont
+@pwndbg.memoize.reset_on_cont
 def get_one_instruction(address):
-    if pwndbg.gdblib.arch.current not in CapstoneArch:
+    if pwndbg.arch.current not in CapstoneArch:
         return SimpleInstruction(address)
     md = get_disassembler(address)
-    size = VariableInstructionSizeMax.get(pwndbg.gdblib.arch.current, 4)
-    data = pwndbg.gdblib.memory.read(address, size, partial=True)
+    size = VariableInstructionSizeMax.get(pwndbg.arch.current, 4)
+    data = pwndbg.memory.read(address, size, partial=True)
     for ins in md.disasm(bytes(data), address, 1):
         pwndbg.disasm.arch.DisassemblyAssistant.enhance(ins)
         return ins
@@ -151,8 +146,8 @@ def get_one_instruction(address):
 
 def one(address=None):
     if address is None:
-        address = pwndbg.gdblib.regs.pc
-    if not pwndbg.gdblib.memory.peek(address):
+        address = pwndbg.regs.pc
+    if not pwndbg.memory.peek(address):
         return None
     for insn in get(address, 1):
         backward_cache[insn.next] = insn.address
@@ -171,7 +166,7 @@ def get(address, instructions=1):
     address = int(address)
 
     # Dont disassemble if there's no memory
-    if not pwndbg.gdblib.memory.peek(address):
+    if not pwndbg.memory.peek(address):
         return []
 
     retval = []
@@ -211,9 +206,9 @@ def near(address, instructions=1, emulate=False, show_prev_insns=True):
 
     current = one(address)
 
-    pc = pwndbg.gdblib.regs.pc
+    pc = pwndbg.regs.pc
 
-    if current is None or not pwndbg.gdblib.memory.peek(address):
+    if current is None or not pwndbg.memory.peek(address):
         return []
 
     insns = []
@@ -232,7 +227,7 @@ def near(address, instructions=1, emulate=False, show_prev_insns=True):
     insns.append(current)
 
     # Some architecture aren't emulated yet
-    if not pwndbg.emu or pwndbg.gdblib.arch.current not in pwndbg.emu.emulator.arch_to_UC:
+    if not pwndbg.emu or pwndbg.arch.current not in pwndbg.emu.emulator.arch_to_UC:
         emulate = False
 
     # Emulate forward if we are at the current instruction.

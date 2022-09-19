@@ -1,3 +1,38 @@
+import gdb
+
+import pwndbg.color.message as message
+import pwndbg.events
+import pwndbg.file
+import pwndbg.memoize
+import pwndbg.qemu
+import pwndbg.remote
+
+
+@pwndbg.memoize.reset_on_start
+@pwndbg.memoize.reset_on_exit
+def is_android():
+    if pwndbg.qemu.is_qemu():
+        return False
+
+    try:
+        if pwndbg.file.get("/system/etc/hosts"):
+            return True
+    except OSError:
+        pass
+
+    return False
+
+
+@pwndbg.events.start
+def sysroot():
+    cmd = "set sysroot remote:/"
+    if is_android():
+        if gdb.parameter("sysroot") == "target:":
+            gdb.execute(cmd)
+        else:
+            print(message.notice("sysroot is already set, skipping %r" % cmd))
+
+
 KNOWN_AIDS = {
     0: "AID_ROOT",
     1000: "AID_SYSTEM",
@@ -79,7 +114,7 @@ KNOWN_AIDS = {
 }
 
 
-def aid_name(uid):  # types: (int) -> str
+def aid_name(uid):
     if uid in KNOWN_AIDS:
         return KNOWN_AIDS[uid]
 

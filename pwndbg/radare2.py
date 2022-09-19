@@ -1,11 +1,11 @@
 import gdb
 
 import pwndbg.elf
-import pwndbg.lib.memoize
+import pwndbg.memoize
 
 
-@pwndbg.lib.memoize.reset_on_start
-@pwndbg.lib.memoize.reset_on_objfile
+@pwndbg.memoize.reset_on_start
+@pwndbg.memoize.reset_on_objfile
 def r2pipe():
     """
     Spawn and return a r2pipe handle for the current process file.

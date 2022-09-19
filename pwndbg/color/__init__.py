@@ -1,7 +1,7 @@
 import os
 import re
 
-import pwndbg.lib.memoize
+import pwndbg.memoize
 
 from . import theme as theme
 
@@ -122,7 +122,7 @@ disable_colors = theme.Parameter(
 )
 
 
-@pwndbg.lib.memoize.reset_on_stop
+@pwndbg.memoize.reset_on_stop
 def generateColorFunctionInner(old, new):
     def wrapper(text):
         return new(old(text))

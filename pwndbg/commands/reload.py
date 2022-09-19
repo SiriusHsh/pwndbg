@@ -1,9 +1,11 @@
 import types
 
+import gdb
+
 import pwndbg
 import pwndbg.commands
-import pwndbg.gdblib.events
-import pwndbg.lib.memoize
+import pwndbg.events
+import pwndbg.memoize
 
 try:
     from __builtins__ import reload as _reload
@@ -32,9 +34,9 @@ def rreload(module, mdict=None):
 
 @pwndbg.commands.ArgparsedCommand("Reload pwndbg.")
 def reload(*a):
-    pwndbg.gdblib.events.on_reload()
+    pwndbg.events.on_reload()
     rreload(pwndbg)
-    pwndbg.gdblib.events.after_reload()
+    pwndbg.events.after_reload()
 
 
 @pwndbg.commands.ArgparsedCommand("Makes pwndbg reinitialize all state.")
@@ -42,5 +44,5 @@ def reinit_pwndbg():
     """
     Makes pwndbg reinitialize all state.
     """
-    pwndbg.lib.memoize.reset()
-    pwndbg.gdblib.events.after_reload()
+    pwndbg.memoize.reset()
+    pwndbg.events.after_reload()

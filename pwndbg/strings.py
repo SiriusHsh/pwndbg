@@ -7,13 +7,14 @@ import string
 
 import gdb
 
-import pwndbg.gdblib.events
-import pwndbg.gdblib.memory
+import pwndbg.events
+import pwndbg.memory
+import pwndbg.typeinfo
 
 length = 15
 
 
-@pwndbg.gdblib.events.stop
+@pwndbg.events.stop
 def update_length():
     r"""
     Unfortunately there's not a better way to get at this info.
@@ -45,7 +46,7 @@ def get(address, maxlen=None, maxread=None):
         maxread = length
 
     try:
-        sz = pwndbg.gdblib.memory.string(address, maxread)
+        sz = pwndbg.memory.string(address, maxread)
     except gdb.error:  # should not happen, but sanity check?
         return None
 

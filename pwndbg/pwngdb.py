@@ -225,3 +225,25 @@ def testorange(addr):
         print("Func : \033[33m 0x%x\033[1;37m" % overflow)
     else:
         print("Result : \033[31mFalse\033[1;37m")
+
+
+def testfsop(addr=None):
+    if not addr:
+        _IO_list_all = pwndbg.symbol.address("_IO_list_all")
+        head = pwndbg.memory.read(_IO_list_all, pwndbg.arch.ptrsize)
+        head = int.from_bytes(head, byteorder=pwndbg.arch.endian)
+    else:
+        head = addr
+
+    chain = head
+    print("---------- fp : 0x%x ----------" % chain)
+    testorange(chain)
+    try :
+        while chain != 0 :
+            cmd = "x/" + word + "&((struct _IO_FILE_plus *)" + hex(chain) +").file._chain"
+            chain = int(gdb.execute(cmd,to_string=True).split(":")[1].strip(),16)
+            if chain != 0 :
+                print("---------- fp : 0x%x ----------" % chain)
+                testorange(chain)
+    except :
+        print("Chain is corrupted")

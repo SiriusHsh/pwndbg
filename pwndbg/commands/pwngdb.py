@@ -229,3 +229,10 @@ def bcall(symbol):
         addr = int(callbase.split(':')[0], 16) + codebase
         gdb.execute("b *{}".format(hex(addr)))
 
+parser = argparse.ArgumentParser()
+parser.description = "test fsop"
+parser.add_argument("addr", nargs='?', type=int, help="Address of the target")
+@pwndbg.commands.ArgparsedCommand(parser)
+@pwndbg.commands.OnlyWhenRunning
+def fsop(addr):
+    pwngdb.testfsop(addr)

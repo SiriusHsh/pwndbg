@@ -102,7 +102,7 @@ def fmtarg(addr):
         idx = (addr - start) / (pwndbg.arch.ptrsize)
         print("The index of format argument: {} (%{}$)".format(idx+1, idx))
     elif pwndbg.arch.current == "x86-64":
-        start = pwndbg.regs["esp"]
+        start = pwndbg.regs["rsp"]
         idx = (addr - start) / (pwndbg.arch.ptrsize) + 6
         reg = "rsp"
         print("The index of format argument: {} (%{}$)".format(idx+1, idx))
